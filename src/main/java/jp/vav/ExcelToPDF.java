@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -30,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.Temporal;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,6 +57,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFSimpleShape;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -222,9 +225,8 @@ public class ExcelToPDF {
         switch (cell.getCellTypeEnum()) {
         case NUMERIC:
             int index = cell.getCellStyle().getDataFormat();
-            logger.info("index: " + index);
             Function<Temporal, String> formatter = formats.get(index);
-            return Optional.ofNullable(formatter == null ? new DataFormatter().formatCellValue(cell)
+            return Optional.ofNullable(formatter == null ? new DataFormatter(Locale.JAPAN).formatCellValue(cell)
                     : formatter.apply(LocalDateTime.ofInstant(cell.getDateCellValue().toInstant(), ZoneOffset.systemDefault())));
         case STRING:
             return Optional.ofNullable(cell.getRichStringCellValue());
@@ -244,7 +246,29 @@ public class ExcelToPDF {
      * @return converted date string
      */
     static String eraKanjiToAlpha(String date) {
-        return date.replace("明治", "M").replace("大正", "T").replace("昭和", "S").replace("平成", "H").replaceAll("[年月日]", ".").replaceFirst("\\.$", "");
+        return trim(date.replace("明治", "M").replace("大正", "T").replace("昭和", "S").replace("平成", "H").replaceAll("[年月日]", "."), null, ".");
+    }
+
+    /**
+     * @param text target text
+     * @param left trimming characters of left(no operation when null or empty)
+     * @param right trimming characters of right(no operation when null or empty)
+     * @return trimmed text
+     */
+    public static String trim(String text, String left, String right) {
+        int begin = 0;
+        int end = text.length();
+        if (left != null && !left.isEmpty()) {
+            while (begin < end && left.indexOf(text.charAt(begin)) >= 0) {
+                begin++;
+            }
+        }
+        if (right != null && !right.isEmpty()) {
+            while (end > begin && right.indexOf(text.charAt(end - 1)) >= 0) {
+                end--;
+            }
+        }
+        return text.substring(begin, end);
     }
 
     /**
@@ -408,6 +432,13 @@ public class ExcelToPDF {
                 return;
             }
             try {
+                final String lineBreak = "\n";
+                int index = text.indexOf(lineBreak);
+                if (index >= 0) {
+                    println(text.substring(0, index));
+                    print(text.substring(index + lineBreak.length()));
+                    return;
+                }
                 PDPageContentStream content = getContent();
                 float width = font.getStringWidth(text) * fontSize / 1000; /* font.getStringWidth must be after getContent */
                 float max = getPage().getMediaBox().getWidth() - marginRight - currentX;
@@ -674,6 +705,64 @@ public class ExcelToPDF {
     }
 
     /**
+     * Excel to text
+     * 
+     * @param book excel workbook
+     * @param out output to text
+     */
+    public static void toText(Workbook book, OutputStream out) {
+        Objects.requireNonNull(book);
+        Objects.requireNonNull(out);
+        try (PrintStream printer = throwable(() -> new PrintStream(out, true, System.getProperty("file.encoding"))).get()) {
+            for (int i = 0, end = book.getNumberOfSheets(); i < end; i++) {
+                Sheet sheet = book.getSheetAt(i);
+                int rowCount = sheet.getPhysicalNumberOfRows();
+                if (rowCount <= 0) {
+                    logger.info(sheet.getSheetName() + ": empty");
+                    continue; /* skip blank sheet */
+                }
+                logger.info(sheet.getSheetName() + ": " + rowCount + " rows");
+                printer.println("sheet name: " + sheet.getSheetName());
+                printer.println("max row index: " + sheet.getLastRowNum());
+                printer.println("max column index: " + stream(sheet.rowIterator(), rowCount).mapToInt(Row::getLastCellNum).max().orElse(0));
+                sheet.rowIterator().forEachRemaining(row -> {
+                    row.cellIterator().forEachRemaining(cell -> {
+                        cellValue(cell).ifPresent(
+                                value -> printer.println(CellReference.convertNumToColString(cell.getColumnIndex()) + (cell.getRowIndex() + 1) + ": " + value));
+                    });
+                });
+                sheet.getCellComments().entrySet().forEach(entry -> {
+                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue());
+                });
+                if (sheet instanceof XSSFSheet) {
+                    Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch())
+                            .ifPresent(drawing -> drawing.getShapes().iterator().forEachRemaining(shape -> {
+                                if (shape instanceof XSSFSimpleShape) {
+                                    try {
+                                        printer.println("[shape text] " + ((XSSFSimpleShape) shape).getText());
+                                    } catch (NullPointerException e) {
+                                        /* NullPointerException occurs depending on shape type */
+                                    }
+                                }
+                            }));
+                } else if (sheet instanceof HSSFSheet) {
+                    Optional.ofNullable(((HSSFSheet) sheet).getDrawingPatriarch())
+                            .ifPresent(drawing -> drawing.getChildren().iterator().forEachRemaining(shape -> {
+                                if (shape instanceof HSSFSimpleShape) {
+                                    try {
+                                        printer.println("[shape text] " + ((HSSFSimpleShape) shape).getString());
+                                    } catch (NullPointerException e) {
+                                        /* NullPointerException occurs depending on shape type */
+                                    }
+                                }
+                            }));
+                }
+                printer.println("--------");
+            }
+        }
+    }
+
+    /**
      * change file extension
      * 
      * @param path file path
@@ -697,11 +786,13 @@ public class ExcelToPDF {
      */
     public static void main(String[] args) {
         Objects.requireNonNull(args);
-        logger.info("processed " + Stream.of(args).peek(path -> {
+        logger.info("processed " + Stream.of(args).map(path -> trim(path, "\"", "\"")).peek(path -> {
             String toPath = changeExtension(path, ".pdf");
-            try (InputStream in = Files.newInputStream(Paths.get(path), StandardOpenOption.READ);
+            String toTextPath = changeExtension(path, ".txt");
+            try (InputStream in = Files.newInputStream(Paths.get(path));
                     Workbook book = throwable(() -> WorkbookFactory.create(in)).get();
-                    OutputStream out = Files.newOutputStream(Paths.get(toPath), StandardOpenOption.CREATE)) {
+                    OutputStream out = Files.newOutputStream(Paths.get(toPath));
+                    OutputStream outText = Files.newOutputStream(Paths.get(toTextPath))) {
                 logger.info("processing: " + path);
                 convert(book, out, printer -> {
                     printer.setPageSize(PDRectangle.A4, false);
@@ -710,7 +801,8 @@ public class ExcelToPDF {
                     printer.setMargin(15);
                     printer.setLineSpace(5);
                 });
-                logger.info("converted: " + toPath);
+                toText(book, outText);
+                logger.info("converted: " + toPath + ", " + toTextPath);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
