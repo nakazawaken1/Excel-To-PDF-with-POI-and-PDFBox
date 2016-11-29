@@ -23,23 +23,18 @@ import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.chrono.JapaneseChronology;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.Temporal;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -54,11 +49,11 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFSimpleShape;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.DataFormat;
-import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -66,6 +61,8 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFSimpleShape;
+
+import com.github.mygreen.cellformatter.POICellFormatter;
 
 /**
  * Entry point class
@@ -220,33 +217,8 @@ public class ExcelToPDF {
      * @param cell cell
      * @return cell value
      */
-    @SuppressWarnings("deprecation")
-    public static Optional<Object> cellValue(Cell cell) {
-        switch (cell.getCellTypeEnum()) {
-        case NUMERIC:
-            int index = cell.getCellStyle().getDataFormat();
-            Function<Temporal, String> formatter = formats.get(index);
-            return Optional.ofNullable(formatter == null ? new DataFormatter(Locale.JAPAN).formatCellValue(cell)
-                    : formatter.apply(LocalDateTime.ofInstant(cell.getDateCellValue().toInstant(), ZoneOffset.systemDefault())));
-        case STRING:
-            return Optional.ofNullable(cell.getRichStringCellValue());
-        case FORMULA:
-            return Optional.ofNullable(cell.getCellFormula());
-        case BOOLEAN:
-            return Optional.ofNullable(cell.getBooleanCellValue());
-        case ERROR:
-            return Optional.ofNullable(cell.getErrorCellValue());
-        default:
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * @param date Japanese date string
-     * @return converted date string
-     */
-    static String eraKanjiToAlpha(String date) {
-        return trim(date.replace("明治", "M").replace("大正", "T").replace("昭和", "S").replace("平成", "H").replaceAll("[年月日]", "."), null, ".");
+    public static Optional<String> cellValue(Cell cell) {
+        return Optional.ofNullable(new POICellFormatter().formatAsString(cell, Locale.JAPAN)).filter(((Predicate<String>) String::isEmpty).negate());
     }
 
     /**
@@ -272,45 +244,7 @@ public class ExcelToPDF {
     }
 
     /**
-     * date formatters for Japanese
-     */
-    @SuppressWarnings("serial")
-    static final Map<Integer, Function<Temporal, String>> formats = new HashMap<Integer, Function<Temporal, String>>() {
-        {
-            DateTimeFormatter yyyymd = DateTimeFormatter.ofPattern("yyyy/M/d");
-            DateTimeFormatter jyyyymd = DateTimeFormatter.ofPattern("yyyy年M月d");
-            DateTimeFormatter yyyymdhmm = DateTimeFormatter.ofPattern("yyyy/M/d H:mm");
-            DateTimeFormatter mdyy = DateTimeFormatter.ofPattern("M/d/yy");
-            DateTimeFormatter jhmm = DateTimeFormatter.ofPattern("H'時'mm'分'");
-            DateTimeFormatter jhmmss = DateTimeFormatter.ofPattern("H'時'mm'分'ss'秒'");
-            DateTimeFormatter jym = DateTimeFormatter.ofPattern("yyyy'年'M'月'");
-            DateTimeFormatter jmd = DateTimeFormatter.ofPattern("M'月'd'日'");
-            DateTimeFormatter jymd = DateTimeFormatter.ofPattern("Gy年M月d日").withChronology(JapaneseChronology.INSTANCE);
-            put(14, yyyymd::format);
-            put(22, yyyymdhmm::format);
-            put(27, ((Function<Temporal, String>) jymd::format).andThen(ExcelToPDF::eraKanjiToAlpha));
-            put(28, jymd::format);
-            put(29, jymd::format);
-            put(30, mdyy::format);
-            put(31, jyyyymd::format);
-            put(32, jhmm::format);
-            put(33, jhmmss::format);
-            put(34, yyyymd::format);
-            put(35, jmd::format);
-            put(36, ((Function<Temporal, String>) jymd::format).andThen(ExcelToPDF::eraKanjiToAlpha));
-            put(55, jym::format);
-            put(56, jmd::format);
-            put(57, ((Function<Temporal, String>) jymd::format).andThen(ExcelToPDF::eraKanjiToAlpha));
-            put(58, jymd::format);
-        }
-    };
-
-    /**
-     * PDF page wrapper
-     */
-    /**
-     * @author nk0126
-     *
+     * PDF printer
      */
     public static class Printer implements AutoCloseable {
         /**
@@ -364,11 +298,6 @@ public class ExcelToPDF {
         protected Optional<PDDocument> document = Optional.empty();
 
         /**
-         * PDF page
-         */
-        protected Optional<PDPage> page = Optional.empty();
-
-        /**
          * PDF contents
          */
         protected Optional<PDPageContentStream> content = Optional.empty();
@@ -389,11 +318,6 @@ public class ExcelToPDF {
         protected Optional<Consumer<Printer>> documentSetup = Optional.empty();
 
         /**
-         * setup at page created
-         */
-        protected Optional<Consumer<Printer>> pageSetup = Optional.empty();
-
-        /**
          * setup at content created
          */
         protected Optional<Consumer<Printer>> contentSetup = Optional.empty();
@@ -407,6 +331,11 @@ public class ExcelToPDF {
          * current vertical position
          */
         protected float currentY;
+
+        /**
+         * draw margin line if true
+         */
+        protected boolean drawMarginLine;
 
         /**
          * create printer
@@ -440,15 +369,15 @@ public class ExcelToPDF {
                     return;
                 }
                 PDPageContentStream content = getContent();
-                float width = font.getStringWidth(text) * fontSize / 1000; /* font.getStringWidth must be after getContent */
-                float max = getPage().getMediaBox().getWidth() - marginRight - currentX;
+                float width = textWidth(text); /* font.getStringWidth must be after getContent */
+                float max = pageSize.getWidth() - marginRight - currentX;
                 if (width > max) { /* wrap */
                     int length = text.length();
                     int count = length / 2;
-                    while (count > 1 && font.getStringWidth(text.substring(0, count)) * fontSize / 1000 > max) {
+                    while (count > 1 && textWidth(text.substring(0, count)) > max) {
                         count /= 2;
                     }
-                    while (count < length && font.getStringWidth(text.substring(0, count + 1)) * fontSize / 1000 <= max) {
+                    while (count < length && textWidth(text.substring(0, count + 1)) <= max) {
                         count++;
                     }
                     content.showText(text.substring(0, count));
@@ -456,8 +385,8 @@ public class ExcelToPDF {
                     print(text.substring(count));
                     return;
                 }
-                currentX += width;
                 content.showText(text);
+                currentX += width;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -469,7 +398,7 @@ public class ExcelToPDF {
         public void newLine() {
             currentX = marginLeft;
             currentY += fontSize + lineSpace;
-            if (currentY + fontSize > getPage().getMediaBox().getHeight() - marginButtom) {
+            if (currentY + fontSize > pageSize.getHeight() - marginButtom) {
                 newPage();
             } else {
                 throwable(() -> getContent().newLineAtOffset(0, -fontSize - lineSpace)).run();
@@ -490,9 +419,21 @@ public class ExcelToPDF {
          * break page
          */
         public void newPage() {
-            content.ifPresent(throwable(PDPageContentStream::endText).andThen(throwable(PDPageContentStream::close)));
+            content.ifPresent(i -> {
+                try {
+                    i.endText();
+                    if(drawMarginLine) {
+                        i.addRect(marginLeft, marginButtom, pageSize.getWidth() - marginLeft - marginRight, pageSize.getHeight() - marginTop - marginButtom);
+                        i.setLineWidth(0.01f);
+                        i.setLineDashPattern(new float[] { 3f, 1f }, 0);
+                        i.stroke();
+                    }
+                    i.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
             content.ifPresent(i -> logger.config("destroy PDPageContentStream: " + i.hashCode()));
-            page = Optional.empty();
             content = Optional.empty();
         }
 
@@ -528,30 +469,19 @@ public class ExcelToPDF {
         }
 
         /**
-         * @return PDF page
-         */
-        protected PDPage getPage() {
-            return page.orElseGet(() -> {
-                PDPage page = new PDPage(pageSize);
-                logger.config("add PDPage: " + page.hashCode());
-                this.page = Optional.of(page);
-                pageSetup.ifPresent(i -> i.accept(this));
-                getDocument().addPage(page);
-                return page;
-            });
-        }
-
-        /**
          * @return PDF content
          */
         protected PDPageContentStream getContent() {
             return content.orElseGet(throwable(() -> {
-                PDPageContentStream content = new PDPageContentStream(getDocument(), getPage());
+                PDPage page = new PDPage(pageSize);
+                logger.config("add PDPage: " + page.hashCode());
+                getDocument().addPage(page);
+                PDPageContentStream content = new PDPageContentStream(getDocument(), page);
                 logger.config("create PDPageContentStream: " + content.hashCode());
                 this.content = Optional.of(content);
                 content.beginText();
                 content.setFont(font, fontSize);
-                content.newLineAtOffset(marginLeft, getPage().getMediaBox().getHeight() - fontSize - marginTop);
+                content.newLineAtOffset(marginLeft, pageSize.getHeight() - fontSize - marginTop);
                 currentY = marginTop;
                 contentSetup.ifPresent(i -> i.accept(this));
                 return content;
@@ -559,10 +489,25 @@ public class ExcelToPDF {
         }
 
         /**
-         * @param margin top, bottom, left and right margin
+         * @return descent
          */
-        public void setMargin(float margin) {
-            marginTop = marginButtom = marginLeft = marginRight = margin;
+        protected float descent() {
+            return font.getFontDescriptor().getDescent() * fontSize / 1000f;
+        }
+
+        /**
+         * @param text text
+         * @return text width
+         */
+        protected float textWidth(String text) {
+            return text == null ? 0 : throwable(() -> font.getStringWidth(text) * fontSize / 1000f).get();
+        }
+
+        /**
+         * @param point top, bottom, left and right margin
+         */
+        public void setMargin(float point) {
+            marginTop = marginButtom = marginLeft = marginRight = point;
         }
 
         /**
@@ -642,6 +587,13 @@ public class ExcelToPDF {
         public void setLineSpace(float point) {
             lineSpace = point;
         }
+
+        /**
+         * @param enabled draw margin line if true
+         */
+        public void setDrawMarginLine(boolean enabled) {
+            drawMarginLine = enabled;
+        }
     }
 
     /**
@@ -669,12 +621,11 @@ public class ExcelToPDF {
                 printer.println("max column index: " + stream(sheet.rowIterator(), rowCount).mapToInt(Row::getLastCellNum).max().orElse(0));
                 sheet.rowIterator().forEachRemaining(row -> {
                     row.cellIterator().forEachRemaining(cell -> {
-                        cellValue(cell).ifPresent(
-                                value -> printer.println(CellReference.convertNumToColString(cell.getColumnIndex()) + (cell.getRowIndex() + 1) + ": " + value));
+                        cellValue(cell).ifPresent(value -> printer.println(new CellReference(cell).formatAsString() + ": " + value));
                     });
                 });
                 sheet.getCellComments().entrySet().forEach(entry -> {
-                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue());
+                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue().getString());
                 });
                 if (sheet instanceof XSSFSheet) {
                     Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch())
@@ -727,12 +678,11 @@ public class ExcelToPDF {
                 printer.println("max column index: " + stream(sheet.rowIterator(), rowCount).mapToInt(Row::getLastCellNum).max().orElse(0));
                 sheet.rowIterator().forEachRemaining(row -> {
                     row.cellIterator().forEachRemaining(cell -> {
-                        cellValue(cell).ifPresent(
-                                value -> printer.println(CellReference.convertNumToColString(cell.getColumnIndex()) + (cell.getRowIndex() + 1) + ": " + value));
+                        cellValue(cell).ifPresent(value -> printer.println(new CellReference(cell).formatAsString() + ": " + value));
                     });
                 });
                 sheet.getCellComments().entrySet().forEach(entry -> {
-                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue());
+                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue().getString());
                 });
                 if (sheet instanceof XSSFSheet) {
                     Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch())
@@ -782,31 +732,58 @@ public class ExcelToPDF {
     /**
      * entry point
      * 
-     * @param args Excel files(.xls, .xlsx, .xlsm)
+     * @param args [-l logLevel(INFO, CONFIG, ...)] [-p password] Excel files(.xls, .xlsx, .xlsm)
      */
     public static void main(String[] args) {
         Objects.requireNonNull(args);
-        logger.info("processed " + Stream.of(args).map(path -> trim(path, "\"", "\"")).peek(path -> {
-            String toPath = changeExtension(path, ".pdf");
-            String toTextPath = changeExtension(path, ".txt");
-            try (InputStream in = Files.newInputStream(Paths.get(path));
-                    Workbook book = throwable(() -> WorkbookFactory.create(in)).get();
-                    OutputStream out = Files.newOutputStream(Paths.get(toPath));
-                    OutputStream outText = Files.newOutputStream(Paths.get(toTextPath))) {
-                logger.info("processing: " + path);
-                convert(book, out, printer -> {
-                    printer.setPageSize(PDRectangle.A4, false);
-                    printer.setFont(System.getenv("WINDIR") + "\\fonts\\msgothic.ttc", "MS-Gothic"); /* for windows */
-                    printer.setFontSize(10.5f);
-                    printer.setMargin(15);
-                    printer.setLineSpace(5);
-                });
-                toText(book, outText);
-                logger.info("converted: " + toPath + ", " + toTextPath);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        int count = 0;
+        boolean[] drawMarginLine = {false};
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+            case "-l":/* set log level */
+                i++;
+                Level level = Level.parse(args[i]);
+                for (Handler handler : Logger.getLogger("").getHandlers()) {
+                    handler.setLevel(level);
+                }
+                break;
+            case "-m":/* set draw margin line */
+                i++;
+                drawMarginLine[0] = Boolean.parseBoolean(args[i]);
+               break;
+            case "-p":/* set password */
+                i++;
+                Biff8EncryptionKey.setCurrentUserPassword(args[i]);
+                break;
+            default:
+                String path = trim(args[i], "\"", "\"");
+                String toPath = changeExtension(path, ".pdf");
+                String toTextPath = changeExtension(path, ".txt");
+                try (InputStream in = Files.newInputStream(Paths.get(path));
+                        Workbook book = WorkbookFactory.create(in);
+                        OutputStream out = Files.newOutputStream(Paths.get(toPath));
+                        OutputStream outText = Files.newOutputStream(Paths.get(toTextPath))) {
+                    logger.info("processing: " + path);
+                    convert(book, out, printer -> {
+                        printer.setPageSize(PDRectangle.A4, false);
+                        printer.setFont(System.getenv("WINDIR") + "\\fonts\\msgothic.ttc", "MS-Gothic"); /* for windows */
+                        printer.setFontSize(10.5f);
+                        printer.setMargin(15);
+                        printer.setLineSpace(5);
+                        printer.setDrawMarginLine(drawMarginLine[0]);
+                    });
+                    toText(book, outText);
+                    logger.info("converted: " + toPath + ", " + toTextPath);
+                    count++;
+                } catch (InvalidFormatException e) {
+                    throw new RuntimeException("Invalid file type.");
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                break;
             }
-        }).count() + " files.");
+        }
+        logger.info("processed " + count + " files.");
     }
 
 }

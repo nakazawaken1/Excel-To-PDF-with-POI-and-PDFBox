@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
-History
+[History]
 
 rev.0.1 get text from excel
+rev.0.2 use Excel-CellFormatter http://mygreen.github.io/excel-cellformatter/
