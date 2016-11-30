@@ -20,5 +20,6 @@ limitations under the License.
 
 [History]
 
-rev.0.1 get text from excel
-rev.0.2 use Excel-CellFormatter http://mygreen.github.io/excel-cellformatter/
+rev.0.1 get text from excel.
+rev.0.2 use Excel-CellFormatter http://mygreen.github.io/excel-cellformatter/.
+rev.0.3 divide ExcelToPDF to ExcelTo, PDFPrinter, Tool, Try classes.

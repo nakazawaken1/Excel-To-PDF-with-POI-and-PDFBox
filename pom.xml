@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>jp.vav</groupId>
 	<artifactId>Excel-To-PDF-with-POI-and-PDFBox</artifactId>
-	<version>0.1</version>
+	<version>0.3</version>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>1.8</maven.compiler.source>
