@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
@@ -32,10 +33,12 @@ import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFSimpleShape;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFSimpleShape;
@@ -76,37 +79,9 @@ public class ExcelTo {
                 printer.println("sheet name: " + sheet.getSheetName());
                 printer.println("max row index: " + sheet.getLastRowNum());
                 printer.println("max column index: " + Tool.stream(sheet.rowIterator(), rowCount).mapToInt(Row::getLastCellNum).max().orElse(0));
-                sheet.rowIterator().forEachRemaining(row -> {
-                    row.cellIterator().forEachRemaining(cell -> {
-                        Tool.cellValue(cell).ifPresent(value -> printer.println(new CellReference(cell).formatAsString() + ": " + value));
-                    });
-                });
-                sheet.getCellComments().entrySet().forEach(entry -> {
-                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue().getString());
-                });
-                if (sheet instanceof XSSFSheet) {
-                    Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch())
-                            .ifPresent(drawing -> drawing.getShapes().iterator().forEachRemaining(shape -> {
-                                if (shape instanceof XSSFSimpleShape) {
-                                    try {
-                                        printer.println("[shape text] " + ((XSSFSimpleShape) shape).getText());
-                                    } catch (NullPointerException e) {
-                                        /* NullPointerException occurs depending on shape type */
-                                    }
-                                }
-                            }));
-                } else if (sheet instanceof HSSFSheet) {
-                    Optional.ofNullable(((HSSFSheet) sheet).getDrawingPatriarch())
-                            .ifPresent(drawing -> drawing.getChildren().iterator().forEachRemaining(shape -> {
-                                if (shape instanceof HSSFSimpleShape) {
-                                    try {
-                                        printer.println("[shape text] " + ((HSSFSimpleShape) shape).getString());
-                                    } catch (NullPointerException e) {
-                                        /* NullPointerException occurs depending on shape type */
-                                    }
-                                }
-                            }));
-                }
+                eachCell(sheet, (cell, range) -> Tool.cellValue(cell).ifPresent(
+                        value -> printer.println('[' + (range == null ? new CellReference(cell).formatAsString() : range.formatAsString()) + "] " + value)));
+                eachShape(sheet, shapeText(text -> printer.println("[shape text] " + text)));
                 printer.newPage();
             }
             printer.getDocument().save(out);
@@ -114,7 +89,23 @@ public class ExcelTo {
     }
 
     /**
-     * Excel to text
+     * get shape text
+     * 
+     * @param consumer text consumer
+     * @return binary consumer
+     */
+    public static BiConsumer<XSSFSimpleShape, HSSFSimpleShape> shapeText(Consumer<String> consumer) {
+        return (shapeX, shapeH) -> {
+            try {
+                consumer.accept(shapeX != null ? shapeX.getText() : shapeH.getString().getString());
+            } catch (NullPointerException e) {
+                /* NullPointerException occurs depending on shape type */
+            }
+        };
+    }
+
+    /**
+     * excel to text
      * 
      * @param book excel workbook
      * @param out output to text
@@ -134,39 +125,64 @@ public class ExcelTo {
                 printer.println("sheet name: " + sheet.getSheetName());
                 printer.println("max row index: " + sheet.getLastRowNum());
                 printer.println("max column index: " + Tool.stream(sheet.rowIterator(), rowCount).mapToInt(Row::getLastCellNum).max().orElse(0));
-                sheet.rowIterator().forEachRemaining(row -> {
-                    row.cellIterator().forEachRemaining(cell -> {
-                        Tool.cellValue(cell).ifPresent(value -> printer.println(new CellReference(cell).formatAsString() + ": " + value));
-                    });
-                });
+                eachCell(sheet, (cell, range) -> Tool.cellValue(cell).ifPresent(
+                        value -> printer.println('[' + (range == null ? new CellReference(cell).formatAsString() : range.formatAsString()) + "] " + value)));
                 sheet.getCellComments().entrySet().forEach(entry -> {
-                    printer.println("[comment] " + entry.getKey() + ": " + entry.getValue().getString());
+                    printer.println("[comment " + entry.getKey() + "] " + entry.getValue().getString());
                 });
-                if (sheet instanceof XSSFSheet) {
-                    Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch())
-                            .ifPresent(drawing -> drawing.getShapes().iterator().forEachRemaining(shape -> {
-                                if (shape instanceof XSSFSimpleShape) {
-                                    try {
-                                        printer.println("[shape text] " + ((XSSFSimpleShape) shape).getText());
-                                    } catch (NullPointerException e) {
-                                        /* NullPointerException occurs depending on shape type */
-                                    }
-                                }
-                            }));
-                } else if (sheet instanceof HSSFSheet) {
-                    Optional.ofNullable(((HSSFSheet) sheet).getDrawingPatriarch())
-                            .ifPresent(drawing -> drawing.getChildren().iterator().forEachRemaining(shape -> {
-                                if (shape instanceof HSSFSimpleShape) {
-                                    try {
-                                        printer.println("[shape text] " + ((HSSFSimpleShape) shape).getString());
-                                    } catch (NullPointerException e) {
-                                        /* NullPointerException occurs depending on shape type */
-                                    }
-                                }
-                            }));
-                }
+                eachShape(sheet, shapeText(text -> printer.println("[shape text] " + text)));
                 printer.println("--------");
             }
+        }
+    }
+
+    /**
+     * traverse all cells
+     * 
+     * @param sheet sheet
+     * @param consumer cell consumer
+     */
+    public static void eachCell(Sheet sheet, BiConsumer<Cell, CellRangeAddress> consumer) {
+        sheet.rowIterator().forEachRemaining(row -> {
+            row.cellIterator().forEachRemaining(cell -> {
+                int rowIndex = cell.getRowIndex();
+                int columnIndex = cell.getColumnIndex();
+                boolean until = true;
+                for (CellRangeAddress mergedRegion : sheet.getMergedRegions()) {
+                    if (mergedRegion.isInRange(rowIndex, columnIndex)) {
+                        if (rowIndex == mergedRegion.getFirstRow() && columnIndex == mergedRegion.getFirstColumn()) {
+                            consumer.accept(cell, mergedRegion);
+                        }
+                        until = false;
+                        break;
+                    }
+                }
+                if (until) {
+                    consumer.accept(cell, null);
+                }
+            });
+        });
+    }
+
+    /**
+     * traverse all shape
+     * 
+     * @param sheet sheet
+     * @param consumer shape consumer
+     */
+    public static void eachShape(Sheet sheet, BiConsumer<XSSFSimpleShape, HSSFSimpleShape> consumer) {
+        if (sheet instanceof XSSFSheet) {
+            Optional.ofNullable(((XSSFSheet) sheet).getDrawingPatriarch()).ifPresent(drawing -> drawing.getShapes().forEach(shape -> {
+                if (shape instanceof XSSFSimpleShape) {
+                    consumer.accept((XSSFSimpleShape) shape, null);
+                }
+            }));
+        } else if (sheet instanceof HSSFSheet) {
+            Optional.ofNullable(((HSSFSheet) sheet).getDrawingPatriarch()).ifPresent(drawing -> drawing.getChildren().forEach(shape -> {
+                if (shape instanceof HSSFSimpleShape) {
+                    consumer.accept(null, (HSSFSimpleShape) shape);
+                }
+            }));
         }
     }
 

@@ -584,7 +584,6 @@ public class PDFPrinter implements AutoCloseable {
             printer.printRight("様式3-14").newLine();
             printer.setFontSize(14f).printCenter("請　求　書").newLine().setFontSize(10.5f);
             printer.printRight("平成28年11月29日").newLine();
-            printer.print("大阪市長　様").newLine();
             printer.saveAndClose(Files.newOutputStream(Paths.get("\\temp\\a.pdf")));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
