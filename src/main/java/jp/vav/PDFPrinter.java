@@ -40,7 +40,7 @@ import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 
 /**
- * PDF printer
+ * PDF printer supported auto line and page break, printer center and right, change font and font size, change page size, change margin, change line spacing
  * 
  * @author nakazawaken1
  */
@@ -268,6 +268,11 @@ public class PDFPrinter implements AutoCloseable {
      */
     public PDFPrinter() {
         logger.config("create Printer: " + hashCode());
+        /* for Japanese */
+        String path = System.getenv("WINDIR") + "\\fonts\\msgothic.ttc";
+        if(Files.exists(Paths.get(path))) {
+            setFont(path, "MS-Gothic");
+        }
     }
 
     /**
@@ -580,11 +585,15 @@ public class PDFPrinter implements AutoCloseable {
     public static void main(String[] args) {
         Tool.logSetup(null);
         try (PDFPrinter printer = new PDFPrinter()) {
-            printer.setDrawMarginLine(true).setDrawDebugPoint(true).setFont(System.getenv("WINDIR") + "\\fonts\\msgothic.ttc", "MS-Gothic");
-            printer.printRight("様式3-14").newLine();
-            printer.setFontSize(14f).printCenter("請　求　書").newLine().setFontSize(10.5f);
-            printer.printRight("平成28年11月29日").newLine();
-            printer.saveAndClose(Files.newOutputStream(Paths.get("\\temp\\a.pdf")));
+            printer.setDrawMarginLine(true).setDrawDebugPoint(true);
+            printer.printRight("right").newLine();
+            printer.setFontSize(18f).printCenter("center large text").newLine().setFontSize(10.5f);
+            printer.print("left").newLine();
+            printer.newPage().setPageSize(PDRectangle.A5, true);
+            printer.print("second page");
+            String path = "\\temp\\PDFPrinter.pdf";
+            printer.saveAndClose(Files.newOutputStream(Paths.get(path)));
+            logger.info("sample to " + path);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

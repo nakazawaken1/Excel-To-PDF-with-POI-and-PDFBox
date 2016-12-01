@@ -34,7 +34,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import com.github.mygreen.cellformatter.POICellFormatter;
 
 /**
- * static methods
+ * static methods for utility
  * 
  * @author nakazawaken1
  */
@@ -55,8 +55,8 @@ public class Tool {
      * @param levelText log level text
      */
     public static void logSetup(String levelText) {
-        Logger.getGlobal().info("log level : " + levelText);
         if (levelText != null) {
+            Logger.getGlobal().info("log level : " + levelText);
             Level level = Level.parse(levelText);
             for (Handler handler : Logger.getLogger("").getHandlers()) {
                 if (handler instanceof ConsoleHandler) {
@@ -125,5 +125,59 @@ public class Tool {
             return path + newExtension;
         }
         return path.substring(0, i) + newExtension;
+    }
+
+    /**
+     * true if not empty string
+     */
+    public static final Predicate<String> notEmpty = ((Predicate<String>) String::isEmpty).negate();
+
+    /**
+     * to non-empty string
+     *
+     * @param target target object
+     * @return empty if null or empty string, or string
+     */
+    public static Optional<String> string(Object target) {
+        return Optional.ofNullable(target == null ? null : target.toString()).filter(notEmpty);
+    }
+
+    /**
+     * to integer
+     *
+     * @param target target object
+     * @return empty if invalid integer, or integer
+     */
+    public static Optional<Integer> integer(Object target) {
+        try {
+            return Optional.of(Integer.valueOf(target.toString()));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * to real(float)
+     * @param target target object
+     * @return empty if invalid real, or real
+     */
+    public static Optional<Float> real(Object target) {
+        try {
+            return Optional.of(Float.valueOf(target.toString()));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * javascript like substr
+     * 
+     * @param text text
+     * @param start start index
+     * @param length length(allow negative)
+     * @return sub string
+     */
+    public static String substr(String text, int start, int length) {
+        return text.substring(start, (length < 0 ? text.length() : start) + length);
     }
 }

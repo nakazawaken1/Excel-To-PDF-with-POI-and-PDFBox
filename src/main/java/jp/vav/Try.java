@@ -29,11 +29,11 @@ import java.util.function.Supplier;
 public class Try {
 
     /**
-     * throwsable runnable
+     * throwsable action
      * 
      * @author nakazawaken1
      */
-    public interface TryRunnable {
+    public interface TryAction {
         /**
          * @throws Exception Exception
          */
@@ -85,16 +85,16 @@ public class Try {
     }
 
     /**
-     * throwable runnable
+     * throwable action
      * 
      * @author nakazawaken1
-     * @param runnable throwable runnable
-     * @return runnable
+     * @param action throwable action
+     * @return action
      */
-    public static Runnable to(TryRunnable runnable) {
+    public static Action to(TryAction action) {
         return () -> {
             try {
-                runnable.run();
+                action.run();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } catch (RuntimeException e) {

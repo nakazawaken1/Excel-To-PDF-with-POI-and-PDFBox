@@ -44,7 +44,7 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFSimpleShape;
 
 /**
- * Entry point class
+ * Convert Excel to pdf or text
  * 
  * @author nakazawaken1
  */
@@ -187,7 +187,7 @@ public class ExcelTo {
     }
 
     /**
-     * entry point
+     * command
      * 
      * @param args [-p password] [-m true|false(draw margin line if true)] Excel files(.xls, .xlsx, .xlsm)
      */
@@ -216,7 +216,6 @@ public class ExcelTo {
                     logger.info("processing: " + path);
                     pdf(book, out, printer -> {
                         printer.setPageSize(PDRectangle.A4, false);
-                        printer.setFont(System.getenv("WINDIR") + "\\fonts\\msgothic.ttc", "MS-Gothic"); /* for windows */
                         printer.setFontSize(10.5f);
                         printer.setMargin(15);
                         printer.setLineSpace(5);
