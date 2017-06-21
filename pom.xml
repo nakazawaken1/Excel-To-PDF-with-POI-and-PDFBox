@@ -1,31 +1,71 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<groupId>jp.vav</groupId>
-	<artifactId>Excel-To-PDF-with-POI-and-PDFBox</artifactId>
-	<version>0.4</version>
-	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<maven.compiler.source>1.8</maven.compiler.source>
-		<maven.compiler.target>1.8</maven.compiler.target>
-	</properties>
-	<dependencies>
-		<!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox -->
-		<dependency>
-			<groupId>org.apache.pdfbox</groupId>
-			<artifactId>pdfbox</artifactId>
-			<version>2.0.3</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml -->
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi-ooxml</artifactId>
-			<version>3.15</version>
-		</dependency>
-		<dependency>
-			<groupId>com.github.mygreen</groupId>
-			<artifactId>excel-cellformatter</artifactId>
-			<version>0.8.3</version>
-		</dependency>
-	</dependencies>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>jp.qpg</groupId>
+  <artifactId>Excel-To-PDF-with-POI-and-PDFBox</artifactId>
+  <version>0.4.1</version>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+  </properties>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.0.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>2.10.4</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+    <extensions>
+      <extension>
+        <groupId>org.apache.maven.wagon</groupId>
+        <artifactId>wagon-webdav-jackrabbit</artifactId>
+      </extension>
+    </extensions>
+  </build>
+  <distributionManagement>
+    <repository>
+      <id>qpg.jp</id>
+      <name>qpg.jp repository</name>
+      <url>dav:http://qpg.jp/maven</url>
+    </repository>
+  </distributionManagement>
+  <dependencies>
+    <!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>2.0.6</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>3.16</version>
+    </dependency>
+    <dependency>
+      <groupId>com.github.mygreen</groupId>
+      <artifactId>excel-cellformatter</artifactId>
+      <version>0.9.1</version>
+    </dependency>
+  </dependencies>
 </project>
