@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>jp.qpg</groupId>
   <artifactId>Excel-To-PDF-with-POI-and-PDFBox</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
@@ -25,7 +25,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
-        <version>2.10.4</version>
+        <version>3.0.1</version>
         <executions>
           <execution>
             <goals>
@@ -54,18 +54,18 @@
     <dependency>
       <groupId>org.apache.pdfbox</groupId>
       <artifactId>pdfbox</artifactId>
-      <version>2.0.6</version>
+      <version>2.0.12</version>
     </dependency>
     <!-- https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml -->
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi-ooxml</artifactId>
-      <version>3.16</version>
+      <version>4.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.github.mygreen</groupId>
       <artifactId>excel-cellformatter</artifactId>
-      <version>0.9.1</version>
+      <version>0.10</version>
     </dependency>
   </dependencies>
 </project>

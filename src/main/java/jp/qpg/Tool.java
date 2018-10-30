@@ -90,7 +90,7 @@ public class Tool {
         try {
             text = formatter.formatAsString(cell, Locale.JAPAN);
         } catch (IllegalStateException e) {
-            switch (cell.getCellTypeEnum()) {
+            switch (cell.getCellType()) {
 
             case BOOLEAN:
                 text = String.valueOf(cell.getBooleanCellValue());

@@ -32,7 +32,6 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFSimpleShape;
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -224,8 +223,6 @@ public class ExcelTo {
                     text(book, outText);
                     logger.info("converted: " + toPath + ", " + toTextPath);
                     count++;
-                } catch (InvalidFormatException e) {
-                    throw new RuntimeException("Invalid file type: " + path);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
